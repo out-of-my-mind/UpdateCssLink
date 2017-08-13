@@ -8,6 +8,7 @@ using System.Text;
 using System.Windows.Forms;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Data.SQLite;
 
 namespace WindowsFormsApplication1
 {
@@ -20,34 +21,10 @@ namespace WindowsFormsApplication1
         public class filemodel {
             public string path { set;get;}
         }
-
-        private void button1_Click(object sender, EventArgs e)
+        //设置窗口透明度
+        private void trackBar1_Scroll(object sender, EventArgs e)
         {
-            //选择文件夹
-            if (folderBrowserDialog1.ShowDialog() == DialogResult.OK)
-            {
-                string path = folderBrowserDialog1.SelectedPath;
-                textBox1.Text = path;
-                BindData("*.aspx");
-            }
-            //Calendar cc = new Calendar(DateTime.Now);
-            //label1.Text = "农历节日：" + cc.CalendarHoliday + "，公历节日：" + cc.DateHoliday + "，农历：" + cc.ChineseDateString + "，节气：" + cc.ChineseTwentyFourDay + "，公历日期：" + cc.Date + "，是否闰年：" + cc.IsChineseLeapYear + "，" + cc.WeekDayHoliday;
-                
-        }
-
-        private void BindData(string searchtype) {
-            if (!string.IsNullOrEmpty(textBox1.Text.Trim())) {
-                IEnumerable<string> files = Directory.EnumerateFiles(textBox1.Text, searchtype, SearchOption.TopDirectoryOnly);
-                List<filemodel> myfile = new List<filemodel>();
-                filemodel myfilemodel = new filemodel();
-                foreach (string model in files)
-                {
-                    myfilemodel = new filemodel();
-                    myfilemodel.path = model;
-                    myfile.Add(myfilemodel);
-                }
-                GridViewFileShow.DataSource = myfile;
-            }
+            this.Opacity = Math.Round((Double)(12 - trackBar1.Value) / (Double)10, 1);
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -59,10 +36,33 @@ namespace WindowsFormsApplication1
             this.comboBox1.Items.AddRange(new object[] {"*.aspx","*.html"});
             //this.comboBox1.SelectionStart = 1;
         }
-        //设置窗口透明度
-        private void trackBar1_Scroll(object sender, EventArgs e)
+
+        private void button1_Click(object sender, EventArgs e)
         {
-            this.Opacity = Math.Round((Double)(12-trackBar1.Value) / (Double)10, 1);
+            //选择文件夹,显示文件夹根目录所有同类别的文件
+            if (folderBrowserDialog1.ShowDialog() == DialogResult.OK)
+            {
+                string path = folderBrowserDialog1.SelectedPath;
+                textBox1.Text = path;
+                BindData("*.aspx");
+            }
+        }
+
+        private void BindData(string searchtype)
+        {
+            if (!string.IsNullOrEmpty(textBox1.Text.Trim()))
+            {
+                IEnumerable<string> files = Directory.EnumerateFiles(textBox1.Text, searchtype, SearchOption.TopDirectoryOnly);
+                List<filemodel> myfile = new List<filemodel>();
+                filemodel myfilemodel = new filemodel();
+                foreach (string model in files)
+                {
+                    myfilemodel = new filemodel();
+                    myfilemodel.path = model;
+                    myfile.Add(myfilemodel);
+                }
+                GridViewFileShow.DataSource = myfile;
+            }
         }
         
         //搜索框内容改变时
@@ -86,33 +86,118 @@ namespace WindowsFormsApplication1
             }
             progressBar1.Maximum = pathlist.Count;
             progressBar1.Step = 1;
-            foreach(string path in pathlist){
-                GetFileCssJSLink(path,"js");
-                progressBar1.PerformStep();
+            System.Configuration.AppSettingsReader AppSettings = new System.Configuration.AppSettingsReader();
+            string sqlconn = string.Empty;
+            try
+            {
+                sqlconn = AppSettings.GetValue("SQLiteConnection", typeof(String)).ToString();
+            }
+            catch (InvalidOperationException ex) {
+                //配置文件不正确
+            }
+            string sqlstr = @"create table if not exists filepath(
+                            id integer primary key autoincrement,
+                            path text,
+                            grouplabel text
+                            );";
+            SQLiteCommand SQLiteCmd = new SQLiteCommand();
+            SQLiteCmd.CommandText = sqlstr;
+            SQLiteCmd.CommandType = CommandType.Text;
+            if (SQLiteCommand.Execute(sqlstr, SQLiteExecuteType.Default, sqlconn) != null)
+            {
+                sqlstr = "";
+                List<string> linkes = new List<string>();
+                string lable = hidgroup.Text = DateTime.Now.ToString("yyyyMMddhhmmss");
+                foreach (string path in pathlist)
+                {
+                    sqlstr += "insert into filepath(path,grouplabel) values('"+ path + "','"+ lable + "');";
+                    linkes.AddRange(GetFileCssJSLink(path, ""));
+                    progressBar1.PerformStep();
+                }
+                int count = (int)SQLiteCommand.Execute(sqlstr, SQLiteExecuteType.NonQuery, sqlconn);
+                List<filemodel> myfile = new List<filemodel>();
+                filemodel myfilemodel = new filemodel();
+                linkes = linkes.Distinct().ToList();
+                foreach (string model in linkes)
+                {
+                    myfilemodel = new filemodel();
+                    myfilemodel.path = model;
+                    myfile.Add(myfilemodel);
+                }
+                GridViewFileShow.DataSource = myfile;
+
             }
         }
 
         private void button2_Click(object sender, EventArgs e)
         {
             //处理文件    需要的参数   文件路径、正则类型
-            StringBuilder strhtml = ReadHtmlFile("");
-            Regex reg = new Regex("(src=\")(.*\\.js.*)(\")");
-            MatchCollection matches = reg.Matches(strhtml.ToString(), 0);
-            foreach (Match math in matches)
+            string sqlstr = string.Empty;
+            DataGridViewCheckBoxCell check = new DataGridViewCheckBoxCell();
+            List<string> pathlist = new List<string>();
+            System.Configuration.AppSettingsReader AppSettings = new System.Configuration.AppSettingsReader();
+            string sqlconn = string.Empty;bool myselffile = false;
+            try
             {
-                if (math.Groups[2].Value.IndexOf('?') > 0)
+                sqlconn = AppSettings.GetValue("SQLiteConnection", typeof(String)).ToString();
+                if (string.Equals(AppSettings.GetValue("UpdateFile", typeof(String)).ToString(), "myself", StringComparison.OrdinalIgnoreCase))
                 {
-                    string old = math.Groups[2].Value;
-                    old = old.Substring(0, math.Groups[2].Value.IndexOf('?'));
-                    strhtml.Replace(math.Groups[2].Value, old + "?v=" + DateTime.Now.Ticks);
+                    //替换源文件
+                    myselffile = true;
                 }
-                else
+                else {
+                    if (!Directory.Exists(Environment.CurrentDirectory + "\\UpdateFiled")) {
+                        Directory.CreateDirectory(Environment.CurrentDirectory + "\\UpdateFiled");
+                    }
+                }
+                
+            }
+            catch (InvalidOperationException ex)
+            {
+                return;
+                //配置文件不正确
+            }
+            sqlstr = "create table if not exists updatelinks(id integer primary key autoincrement, link text,grouplable text);";
+            foreach (DataGridViewRow row in GridViewFileShow.Rows)
+            {
+                check = (DataGridViewCheckBoxCell)row.Cells[0];
+                if ((bool)check.EditedFormattedValue || (bool)check.FormattedValue)
                 {
-                    strhtml.Replace(math.Groups[2].Value, math.Groups[2].Value + "?v=" + DateTime.Now.Ticks);
+                    sqlstr += "insert into updatelinks(link,grouplable) values('" + row.Cells[1].Value.ToString() + "','" + hidgroup.Text + "');";
+                    pathlist.Add(row.Cells[1].Value.ToString());
                 }
             }
+            SQLiteCommand.Execute(sqlstr, SQLiteExecuteType.NonQuery, sqlconn);
+            progressBar1.Maximum = pathlist.Count;
+            progressBar1.Step = 1;
             
-            //WriteHtmlFile(strhtml, "D:\\发布web\\editlink\\" + path.Split('\\').Last());
+            sqlstr = "select path from filepath where grouplabel =( select grouplabel from filepath order by id desc LIMIT 1);";
+            SQLiteDataReader dr  = (SQLiteDataReader)SQLiteCommand.Execute(sqlstr, SQLiteExecuteType.Reader, sqlconn);
+            while (dr.Read()) {
+                StringBuilder strhtml = ReadHtmlFile(dr["path"].ToString());
+                foreach (string model in pathlist)
+                {
+                    if (model.IndexOf('?') > 0)
+                    {
+                        string old = "";
+                        if (model.IndexOf("random") > 0)
+                        {
+                            //如果之前更改过
+                            old = model.Substring(model.IndexOf("?random")+26);
+                        }
+                        else {
+                            old = model.Substring(model.IndexOf('?'));
+                        }
+                        strhtml.Replace(model, model.Split('?')[0] + "?random=" + DateTime.Now.Ticks + (model.IndexOf('&') > 0 ? "&" : "") + old);
+                    }
+                    else
+                    {
+                        strhtml.Replace(model, model + "?random=" + DateTime.Now.Ticks);
+                    }
+                }
+                string path = (myselffile ? dr["path"].ToString() : Environment.CurrentDirectory + "\\UpdateFiled\\" + dr["path"].ToString().Split('\\').Last());
+                WriteHtmlFile(strhtml, path);
+            }
         }
         
         /// <summary>
@@ -127,7 +212,7 @@ namespace WindowsFormsApplication1
             StringBuilder strhtml = ReadHtmlFile(path);
             string regx = string.Empty;
             if (type == "js"){
-                regx = "(src=\")(.*\\.js.*)(\")";
+                regx = "(src.*[=].*\")(.*\\.js[^\\s]*)(\")";
                 Regex reg = new Regex(regx);
                 MatchCollection matches = reg.Matches(strhtml.ToString(), 0);
                 foreach (Match math in matches)
@@ -136,7 +221,7 @@ namespace WindowsFormsApplication1
                 }
             }
             else if (type == "css"){
-                regx = "(href=\")(.*\\.css.*)(\")";
+                regx = "(href.*[=].*\")(.*\\.css[^\\s]*)(\")";
                 Regex reg = new Regex(regx);
                 MatchCollection matches = reg.Matches(strhtml.ToString(), 0);
                 foreach (Match math in matches)
@@ -145,18 +230,16 @@ namespace WindowsFormsApplication1
                 }
             }
             else {
-                regx = "((href=\")|(src=\"))((.*\\.css.*)|(.*\\.js.*))(\")";
+                regx = "((href|src).*[=].*\")(.*\\.(css|js)[^\\s]*)(\")";//((href=\")| (src=\"))((.*\\.css[^\\s]*)|(.*\\.js[^\\s]*))(\")
                 Regex reg = new Regex(regx);
                 MatchCollection matches = reg.Matches(strhtml.ToString(), 0);
                 foreach (Match math in matches)
                 {
-                    result.Add(math.Groups[4].Value);
+                    result.Add(math.Groups[3].Value);
                 }
             }
             return result;
         }
-
-        
 
         private void historyToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -190,7 +273,7 @@ namespace WindowsFormsApplication1
 
         /// <summary>
         /// 写入HTML文件
-        /// </summary>"F:/LIEZHONG2.0/LIEZHONGV2.Web/Common/test.htm"
+        /// </summary>"test.htm"
         /// <param name="str">HTML代码</param>
         /// <param name="htmlfilename">完整带路径的文件名</param>
         /// <returns></returns>

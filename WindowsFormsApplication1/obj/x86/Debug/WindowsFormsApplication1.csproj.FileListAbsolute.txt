@@ -12,3 +12,9 @@ D:\Learn\upcsslink\WindowsFormsApplication1\WindowsFormsApplication1\obj\x86\Deb
 D:\Learn\upcsslink\WindowsFormsApplication1\WindowsFormsApplication1\obj\x86\Debug\WindowsFormsApplication1.pdb
 D:\Learn\UpdateCssLink\WindowsFormsApplication1\obj\x86\Debug\WindowsFormsApplication1.exe
 D:\Learn\UpdateCssLink\WindowsFormsApplication1\obj\x86\Debug\WindowsFormsApplication1.pdb
+D:\Learn\UpdateCssLink\WindowsFormsApplication1\bin\Debug\WindowsFormsApplication1.exe
+D:\Learn\UpdateCssLink\WindowsFormsApplication1\bin\Debug\WindowsFormsApplication1.pdb
+D:\Learn\UpdateCssLink\WindowsFormsApplication1\obj\x86\Debug\WindowsFormsApplication1.Form1.resources
+D:\Learn\UpdateCssLink\WindowsFormsApplication1\obj\x86\Debug\WindowsFormsApplication1.Properties.Resources.resources
+D:\Learn\UpdateCssLink\WindowsFormsApplication1\obj\x86\Debug\WindowsFormsApplication1.csproj.GenerateResource.Cache
+D:\Learn\UpdateCssLink\WindowsFormsApplication1\bin\Debug\WindowsFormsApplication1.exe.config
